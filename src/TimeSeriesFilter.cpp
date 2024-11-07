@@ -400,7 +400,14 @@ time_t TimeSeriesFilter::timeBefore(time_t t) {
     return 0;
   }
   else if (this->clock()) {
-    return this->clock()->timeBefore(t);
+    auto b4 = this->clock()->timeBefore(t);
+    if (_resampleMode == ResampleModeLinear && source()->timeAfter(b4-1) == 0) {
+      // make sure source has data "after" this point. if not we may be in the future!
+      auto right_t = source()->timeBefore(t);
+      auto my_t = clock()->timeBefore(right_t);
+      b4 = my_t;
+    }
+    return b4;
   }
   else if (this->canDropPoints()) {
     Point pBefore = this->pointBefore(t);
