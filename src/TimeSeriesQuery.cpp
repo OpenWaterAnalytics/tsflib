@@ -28,6 +28,9 @@ Point TimeSeriesQuery::pointAfter(time_t time) {
 }
 
 vector< Point > TimeSeriesQuery::points(TimeRange range) {
+  if (!_qRecord) {
+    return *new std::vector<Point>();
+  }
   auto points = _qRecord->pointsWithQuery(this->query(), range);
   return points;
 }
