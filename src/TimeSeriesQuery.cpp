@@ -18,17 +18,26 @@ void TimeSeriesQuery::setQuery(const std::string &query) {
 
 
 Point TimeSeriesQuery::pointBefore(time_t time) {
-  auto points = _qRecord->pointsWithQuery(this->query(), TimeRange(0,time));
+  vector<Point> points;
+  if (_qRecord) {
+    points = _qRecord->pointsWithQuery(this->query(), TimeRange(0,time));
+  }
   return points.size() > 0 ? points.front() : Point();
 }
 
 Point TimeSeriesQuery::pointAfter(time_t time) {
-  auto points = _qRecord->pointsWithQuery(this->query(), TimeRange(time,0));
+  vector<Point> points;
+  if (_qRecord) {
+    points = _qRecord->pointsWithQuery(this->query(), TimeRange(time,0));
+  }
   return points.size() > 0 ? points.front() : Point();
 }
 
 vector< Point > TimeSeriesQuery::points(TimeRange range) {
-  auto points = _qRecord->pointsWithQuery(this->query(), range);
+  vector<Point> points;
+  if (_qRecord) {
+    points = _qRecord->pointsWithQuery(this->query(), range);
+  }
   return points;
 }
 
