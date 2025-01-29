@@ -3,7 +3,7 @@
 
 using namespace TSF;
 using namespace std;
-
+#define TINY 1.E-4;
 
 PointCollection Curve::convert(const PointCollection &pc, bool saturate) {
   PointCollection out;
@@ -87,7 +87,7 @@ bool Curve::operator==(const Curve& curve) const {
 
   auto areDoublesEqual = [&](double x, double y) {
     double diff = fabs(x - y);
-    return diff <= 0.0001;
+    return diff <= TINY;
   };
   auto arePointsEqual = [&](const Point& p1, const Point& p2) {
     return areDoublesEqual(p1.x, p2.x) && areDoublesEqual(p1.y, p2.y);
