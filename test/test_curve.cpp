@@ -2,6 +2,7 @@
 
 #include "test_main.h"
 #include "Curve.h"
+#include "Units.h"
 
 using namespace TSF;
 using namespace std;
@@ -40,6 +41,13 @@ BOOST_AUTO_TEST_CASE(equals) {
   curveTwo->name = "1";
   BOOST_CHECK_EQUAL(*curveOne==*curveTwo, true);
 
+
+  curveOne->name = "1";
+  curveTwo->name = "2";
+  BOOST_CHECK_EQUAL(*curveOne==*curveTwo, false);
+  curveTwo->name = "1";
+  BOOST_CHECK_EQUAL(*curveOne==*curveTwo, true);
+
   map1.clear();
   map2.clear();
 
@@ -48,6 +56,25 @@ BOOST_AUTO_TEST_CASE(equals) {
   curveOne->curveData = map1;
   curveTwo->curveData = map2;
   BOOST_CHECK_EQUAL(*curveOne==*curveTwo, false);
+
+  map1.clear();
+  map2.clear();
+  curveOne->curveData = map1;
+  curveTwo->curveData = map2;
+
+
+  Units cfs = Units::unitOfType("cfs");
+  Units mgd = Units::unitOfType("mgd");
+  curveOne->inputUnits = cfs;
+  curveTwo->inputUnits = mgd;
+  BOOST_CHECK_EQUAL(*curveOne==*curveTwo, false);
+  curveTwo->inputUnits = cfs;
+  BOOST_CHECK_EQUAL(*curveOne==*curveTwo, true);
+  curveOne->outputUnits = cfs;
+  curveTwo->outputUnits = mgd;
+  BOOST_CHECK_EQUAL(*curveOne==*curveTwo, false);
+  curveTwo->outputUnits = cfs;
+  BOOST_CHECK_EQUAL(*curveOne==*curveTwo, true);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

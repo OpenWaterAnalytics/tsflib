@@ -3,7 +3,7 @@
 
 using namespace TSF;
 using namespace std;
-#define TINY 1.E-4;
+#define TINY 1.E-4
 
 PointCollection Curve::convert(const PointCollection &pc, bool saturate) {
   PointCollection out;
@@ -69,40 +69,27 @@ PointCollection Curve::convert(const PointCollection &pc, bool saturate) {
 bool Curve::operator==(const Curve& curve) const {
   if (this->name != curve.name) {
     return false;
-  }
-
-  if (this->curveData.size() != curve.curveData.size()) {
+  } else if (this->curveData.size() != curve.curveData.size()) {
+    return false;
+  } else if (this->inputUnits != curve.inputUnits) {
+    return false;
+  } else if (this->outputUnits != curve.outputUnits) {
     return false;
   }
 
-  // Create vectors from the curves
-  struct Point {
-      double x;
-      double y;
-  };
-  std::vector<Point> vec1;
-  for (const auto &p : curveData) {
-    vec1.push_back({p.first, p.second});
-  }
-  std::vector<Point> vec2;
-  for (const auto &p : curve.curveData) {
-    vec2.push_back({p.first, p.second});
-  }
-
-  auto areDoublesEqual = [&](double x, double y) {
-    double diff = fabs(x - y);
-    return diff <= TINY;
-  };
-  auto arePointsEqual = [&](const Point& p1, const Point& p2) {
-    return areDoublesEqual(p1.x, p2.x) && areDoublesEqual(p1.y, p2.y);
-  };
-
-  auto size = vec1.size();
-  for (int i = 0; i < size; i++) {
-    if (!arePointsEqual(vec1[i], vec2[i])) {
+  auto it1 = this->curveData.begin();
+  auto it2 = curve.curveData.begin();
+  while (it1 != this->curveData.end() && it2 != curve.curveData.end()) {
+    if ((std::abs(it1->first - it2->first) > TINY)) {
       return false;
     }
+    if (std::abs(it1->second - it2->second) > TINY) {
+      return false;
+    }
+    ++it1;
+    ++it2;
   }
+
   return true;
 }
 
