@@ -34,6 +34,12 @@ BOOST_AUTO_TEST_CASE(equals) {
   BOOST_CHECK_EQUAL(*curveOne==*curveTwo, true);
   BOOST_CHECK_EQUAL(*curveOne!=*curveTwo, false);
 
+  curveOne->name = "1";
+  curveTwo->name = "2";
+  BOOST_CHECK_EQUAL(*curveOne==*curveTwo, false);
+  curveTwo->name = "1";
+  BOOST_CHECK_EQUAL(*curveOne==*curveTwo, true);
+
   map1.clear();
   map2.clear();
 

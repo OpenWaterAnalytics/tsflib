@@ -67,6 +67,10 @@ PointCollection Curve::convert(const PointCollection &pc, bool saturate) {
 }
 
 bool Curve::operator==(const Curve& curve) const {
+  if (this->name != curve.name) {
+    return false;
+  }
+
   if (this->curveData.size() != curve.curveData.size()) {
     return false;
   }
