@@ -1,6 +1,7 @@
 add_executable( tsflib-test 
 	test_main.cpp
 	test_units.cpp
+	test_curve.cpp
 	test_record.cpp 
 	test_filters.cpp
 	)

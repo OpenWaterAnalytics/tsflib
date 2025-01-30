@@ -3,7 +3,7 @@
 
 using namespace TSF;
 using namespace std;
-
+#define TINY 1.E-4
 
 PointCollection Curve::convert(const PointCollection &pc, bool saturate) {
   PointCollection out;
@@ -64,4 +64,35 @@ PointCollection Curve::convert(const PointCollection &pc, bool saturate) {
   });
   out.setPoints(outp);
   return out;
+}
+
+bool Curve::operator==(const Curve& curve) const {
+  if (this->name != curve.name) {
+    return false;
+  } else if (this->curveData.size() != curve.curveData.size()) {
+    return false;
+  } else if (this->inputUnits != curve.inputUnits) {
+    return false;
+  } else if (this->outputUnits != curve.outputUnits) {
+    return false;
+  }
+
+  auto it1 = this->curveData.begin();
+  auto it2 = curve.curveData.begin();
+  while (it1 != this->curveData.end() && it2 != curve.curveData.end()) {
+    if ((std::abs(it1->first - it2->first) > TINY)) {
+      return false;
+    }
+    if (std::abs(it1->second - it2->second) > TINY) {
+      return false;
+    }
+    ++it1;
+    ++it2;
+  }
+
+  return true;
+}
+
+bool Curve::operator!=(const Curve& curve) const {
+  return !(*this == curve);
 }

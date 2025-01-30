@@ -121,6 +121,7 @@ target_link_libraries(
 add_executable(tsflib_test 
   ./test/test_main.cpp
 	./test/test_units.cpp
+	./test/test_curve.cpp
 	./test/test_record.cpp
 	./test/test_influx.cpp
 	./test/test_filters.cpp

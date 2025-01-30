@@ -13,13 +13,16 @@ namespace TSF {
   class Curve : public TSF_object {
   public:
     TSF_BASE_PROPS(Curve);
+    bool operator==(const Curve& curve) const;
+    bool operator!=(const Curve& curve) const;
+
     std::string name;
     Units inputUnits;
     Units outputUnits;
     std::map<double,double> curveData;
     
     PointCollection convert(const PointCollection& p, bool saturate = false);
-    
+
   };
 }
 
