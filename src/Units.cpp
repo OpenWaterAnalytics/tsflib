@@ -87,7 +87,7 @@ const std::map<std::string, Units> Units::unitStrings = {
   {"kelvin", TSF_DEGREE_KELVIN},
   {"rankine", TSF_DEGREE_RANKINE},
   {"celsius", TSF_DEGREE_CELSIUS},
-  {"farenheit", TSF_DEGREE_FARENHEIT},
+  {"fahrenheit", TSF_DEGREE_FAHRENHEIT},
   
   {"kwh", TSF_KILOWATT_HOUR},
   {"mj", TSF_MEGAJOULE},
