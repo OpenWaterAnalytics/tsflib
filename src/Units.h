@@ -78,7 +78,7 @@
 #define TSF_DEGREE_KELVIN           TSF::Units(1,            0,0,0,0,1,0,0)
 #define TSF_DEGREE_RANKINE          TSF::Units(5./9.,        0,0,0,0,1,0,0) //  K = R * 5/9
 #define TSF_DEGREE_CELSIUS          TSF::Units(1,            0,0,0,0,1,0,0,273.15)
-#define TSF_DEGREE_FARENHEIT        TSF::Units(5./9.,        0,0,0,0,1,0,0,459.67)
+#define TSF_DEGREE_FAHRENHEIT       TSF::Units(5./9.,        0,0,0,0,1,0,0,459.67)
 
 // power and energy
 #define TSF_KILOWATT_HOUR          TSF::Units(3600000,       1,2,-2)
