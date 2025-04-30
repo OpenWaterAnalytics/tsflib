@@ -928,6 +928,9 @@ map<string, vector<Point> > InfluxTcpAdapter::__pointsFromJson(json& json) {
   for (auto &statement : json[kRESULTS]) {
     
     if ( !statement.is_object() || !statement.contains(kSERIES) ) {
+      if (statement.contains("error")) {
+        OATPP_LOGE(InfluxTcpAdapter::TAG, "Error in json decoding: %s", statement["error"].dump().c_str());
+      }
       continue;
     }
     auto &seriesArray = statement[kSERIES];
@@ -973,9 +976,9 @@ map<string, vector<Point> > InfluxTcpAdapter::__pointsFromJson(json& json) {
         columnMap[colName] = (int)i;
       }
       
-      // check columns are all there
+      // check that required columns are all there
       bool allColumnsPresent = true;
-      for (const string &key : {"time","value","quality","confidence"}) {
+      for (const string &key : {"time","value"}) {
         if (columnMap.count(key) == 0) {
           cerr << "column map does not contain key: " << key << endl;
           allColumnsPresent = false;
@@ -988,8 +991,8 @@ map<string, vector<Point> > InfluxTcpAdapter::__pointsFromJson(json& json) {
       const int
       timeIndex = columnMap["time"],
       valueIndex = columnMap["value"],
-      qualityIndex = columnMap["quality"],
-      confidenceIndex = columnMap["confidence"];
+      qualityIndex = columnMap.count("quality") > 0 ? columnMap["quality"] : -1,
+      confidenceIndex = columnMap.count("confidence") > 0 ? columnMap["confidence"] : -1;
       
       if (series.count("values") == 0) {
         OATPP_LOGE(InfluxTcpAdapter::TAG, "Influx returned malformed response. No \"values\" property in series.");
@@ -1023,11 +1026,11 @@ map<string, vector<Point> > InfluxTcpAdapter::__pointsFromJson(json& json) {
         time_t t = row.at(timeIndex);
         double v = row.at(valueIndex);
         Point::PointQuality q = Point::opc_tsf_override;
-        if (!row.at(qualityIndex).is_null()) {
+        if (qualityIndex > 0 && !row.at(qualityIndex).is_null()) {
           q = (Point::PointQuality)(row.at(qualityIndex));
         }
         double c = 0;
-        if (!row.at(confidenceIndex).is_null()) {
+        if (confidenceIndex > 0 && !row.at(confidenceIndex).is_null()) {
           c = row.at(confidenceIndex);
         }
         pointVec->push_back(Point(t,v,q,c));

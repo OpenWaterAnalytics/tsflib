@@ -13,6 +13,9 @@ namespace TSF {
     TSF_BASE_PROPS(TimeSeriesQuery);
     TimeSeriesQuery();
     
+    time_t timeAfter(time_t t);
+    time_t timeBefore(time_t t);
+    
     Point pointBefore(time_t time);
     Point pointAfter(time_t time);
     std::vector< Point > points(TimeRange range);
