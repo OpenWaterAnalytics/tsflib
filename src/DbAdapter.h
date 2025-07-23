@@ -4,6 +4,7 @@
 #include <mutex>
 #include <vector>
 #include <functional>
+#include <atomic>
 
 #include "Point.h"
 #include "Units.h"
