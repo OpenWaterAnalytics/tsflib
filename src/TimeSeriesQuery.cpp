@@ -82,6 +82,7 @@ Point TimeSeriesQuery::pointAfter(time_t time) {
 }
 
 vector< Point > TimeSeriesQuery::points(TimeRange range) {
+  _error = "";
   vector<Point> points;
   
   std::string q = this->query();
@@ -90,6 +91,11 @@ vector< Point > TimeSeriesQuery::points(TimeRange range) {
   if (_qRecord) {
     points = _qRecord->pointsWithQuery(this->query(), newRange);
     points = PointCollection(points, this->units()).trimmedToRange(range).points();
+    
+    if (_qRecord->_adapter->lastError != "") {
+      _error = _qRecord->_adapter->lastError;
+    }
+    
   }
   return points;
 }

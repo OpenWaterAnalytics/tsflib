@@ -733,8 +733,8 @@ Point InfluxTcpAdapter::selectPrevious(const std::string& id, time_t time, Where
 
 
 vector<Point> InfluxTcpAdapter::selectWithQuery(const std::string& query, TimeRange range) {
-  //_TSF_DB_SCOPED_LOCK;
-  // expects a "$timeFilter" placeholder, to be replaced with the time range, e.g., "time >= t1 and time <= t2"
+  // expects a "$timeFilter" placeholder in the string arg,
+  // to be replaced with the time range, e.g., "time >= t1 and time <= t2"
   
   //case insensitive find
   if (boost::ifind_first(query, std::string("$timeFilter")).empty()) {
@@ -870,6 +870,7 @@ string InfluxTcpAdapter::encodeQuery(string queryString){
 }
 
 json InfluxTcpAdapter::jsonFromResponse(const std::shared_ptr<Response> response) {
+  this->lastError = "";
   json js = json::object();
   
   auto errCallback = _errCallback;
@@ -886,6 +887,7 @@ json InfluxTcpAdapter::jsonFromResponse(const std::shared_ptr<Response> response
     // OATPP_LOGD(TAG, "%s", bodyStr.c_str());
     if (!json::accept(bodyStr)){
       OATPP_LOGE(TAG, "JSON Parse Error: %s", bodyStr.c_str());
+      this->lastError = string(bodyStr.c_str());
       return js;
     } else {
       js = json::parse(bodyStr);
@@ -893,7 +895,10 @@ json InfluxTcpAdapter::jsonFromResponse(const std::shared_ptr<Response> response
     }
   }
   else {
-    cerr << TAG << ": Connection Error: " << response->getStatusDescription()->c_str() << " - " << response->readBodyToString().getValue("(no body content)").c_str() << endl;
+    auto err = string(response->readBodyToString().getValue("(no body content)").c_str());
+    cerr << TAG << ": Connection Error: " << response->getStatusDescription()->c_str() << " - " << err << endl;
+    auto errjs = json::parse(err);
+    this->lastError = errjs["error"];
     return js;
   }
 }

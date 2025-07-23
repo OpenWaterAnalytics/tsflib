@@ -26,9 +26,12 @@ namespace TSF {
     std::string query();
     void setQuery(const std::string& query);
     
+    std::string lastError();
+    
   private:
     DbPointRecord::_sp _qRecord;
     std::string _query;
+    std::string _error;
   };
 }
 

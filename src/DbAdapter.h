@@ -1,7 +1,6 @@
 #ifndef DbAdapter_h
 #define DbAdapter_h
 
-#include <boost/atomic.hpp>
 #include <mutex>
 #include <vector>
 #include <functional>
@@ -72,9 +71,10 @@ namespace TSF {
     virtual void removeRecord(const std::string& id) = 0;
     virtual void removeAllRecords() = 0;
     
+    std::string lastError = "";
     
   protected:
-    boost::atomic<bool> _connected;
+    std::atomic<bool> _connected;
     std::mutex _dbMtx;
     std::function<void(const std::string errMsg)> _errCallback;
     
