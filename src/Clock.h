@@ -14,6 +14,7 @@
 #include <set>
 #include "tsfMacros.h"
 #include "TimeRange.h"
+#include <nlohmann/json.hpp>
 
 namespace TSF {
   
@@ -89,7 +90,7 @@ namespace TSF {
     
     bool isEqual(Clock::_sp other);
     
-    std::string name();
+    std::string name() const;
     void setName(std::string name);
     
     virtual bool isCompatibleWith(Clock::_sp clock);
@@ -99,9 +100,9 @@ namespace TSF {
     virtual time_t timeBefore(time_t time);
     
     
-    int period();
+    int period() const;
     void setPeriod(int p);
-    time_t start();
+    time_t start() const;
     void setStart(time_t startTime);
     virtual std::set< time_t > timeValuesInRange(TimeRange range);
     virtual std::ostream& toStream(std::ostream &stream);
@@ -116,6 +117,10 @@ namespace TSF {
   };
   
   std::ostream& operator<< (std::ostream &out, Clock &clock);
+
+  // JSON serialization - Clock owns its own data shape
+  void to_json(nlohmann::json& j, const Clock& c);
+  void from_json(const nlohmann::json& j, Clock& c);
 }
 
 #endif

@@ -39,7 +39,7 @@ std::ostream& TSF::operator<< (std::ostream &out, Clock &clock) {
 #pragma mark - Public Methods
 
 
-std::string Clock::name() {
+std::string Clock::name() const {
   return _name;
 }
 
@@ -86,7 +86,7 @@ bool Clock::isValid(time_t time) {
 }
 
 
-int Clock::period() {
+int Clock::period() const {
   return _period;
 }
 
@@ -97,7 +97,7 @@ void Clock::setPeriod(int p) {
   }
 }
 
-time_t Clock::start() {
+time_t Clock::start() const {
   return _start;
 }
 
@@ -165,4 +165,21 @@ std::ostream& Clock::toStream(std::ostream &stream) {
 
 time_t Clock::timeOffset(time_t time) {
   return ( (time - (start() % period())) % period() );
+}
+
+
+#pragma mark - JSON Serialization
+
+void TSF::to_json(nlohmann::json& j, const Clock& c) {
+  j = nlohmann::json{
+    {"name",   c.name()},
+    {"period", c.period()},
+    {"offset", static_cast<int>(c.start())}
+  };
+}
+
+void TSF::from_json(const nlohmann::json& j, Clock& c) {
+  c.setName(j.at("name").get<std::string>());
+  c.setPeriod(j.at("period").get<int>());
+  c.setStart(j.at("offset").get<int>());
 }
