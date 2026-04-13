@@ -1,4 +1,3 @@
-import os
 from conan import ConanFile
 from conan.tools.cmake import CMakeToolchain, CMake, cmake_layout
 
@@ -14,6 +13,7 @@ class TSFlib(ConanFile):
     default_options = {
         "shared": False,
         "fPIC": True,
+        "cpp-httplib/*:with_openssl": True,
         "boost*:without_container": True,
         "boost*:without_context": True,
         "boost*:without_contract": True,
@@ -44,13 +44,12 @@ class TSFlib(ConanFile):
     }
 
     def requirements(self):
-        self.requires("zlib/1.2.13")
+        self.requires("zlib/1.3.1")
         self.requires("openssl/3.1.2")
-        self.requires("oatpp/1.3.0")
-        self.requires("oatpp-openssl/1.3.0")
+        self.requires("cpp-httplib/0.39.0")
         self.requires("boost/1.83.0")
         self.requires("nlohmann_json/3.10.5")
-        self.requires("libcurl/7.80.0")
+        self.requires("glaze/7.2.0")
         #self.requires("sqlite3/3.45.3")
         self.requires("sqlite_modern_cpp/3.2")
 

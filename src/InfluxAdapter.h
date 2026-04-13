@@ -4,26 +4,12 @@
 #include <stdio.h>
 #include <future>
 #include <thread>
+#include <memory>
 
-#include "oatpp/web/client/HttpRequestExecutor.hpp"
-#include "oatpp/network/tcp/client/ConnectionProvider.hpp"
-#include "oatpp/network/ConnectionPool.hpp"
-#include "oatpp-openssl/client/ConnectionProvider.hpp"
-#include "oatpp-openssl/Config.hpp"
-#include "oatpp/parser/json/mapping/ObjectMapper.hpp"
-#include "oatpp/core/async/Executor.hpp"
-#include "oatpp/network/virtual_/client/ConnectionProvider.hpp"
-#include "oatpp/network/virtual_/server/ConnectionProvider.hpp"
-#include "oatpp/network/virtual_/Interface.hpp"
-#include "oatpp/network/monitor/ConnectionMonitor.hpp"
-#include "oatpp/network/monitor/ConnectionInactivityChecker.hpp"
-#include "oatpp/network/monitor/ConnectionMaxAgeChecker.hpp"
-#include "oatpp/network/ConnectionPool.hpp"
-
+#include "httplib.h"
 #include "nlohmann/json.hpp"
 
 #include "DbAdapter.h"
-#include "InfluxClient.hpp"
 
 namespace TSF {
   class InfluxAdapter : public DbAdapter {
@@ -86,7 +72,6 @@ namespace TSF {
   public:
     
     InfluxTcpAdapter( errCallback_t cb );
-    InfluxTcpAdapter(errCallback_t cb, std::shared_ptr<InfluxClient> restClient );
     ~InfluxTcpAdapter();
     
     const adapterOptions options() const;
@@ -99,7 +84,6 @@ namespace TSF {
     Point selectNext(const std::string& id, time_t time, WhereClause q = WhereClause());
     Point selectPrevious(const std::string& id, time_t time, WhereClause q = WhereClause());
     std::vector<Point> selectWithQuery(const std::string& query, TimeRange range);
-    std::shared_ptr<InfluxClient> _restClient;
 
     
     // PREFETCH
@@ -115,8 +99,6 @@ namespace TSF {
     std::string formatTimestamp(time_t t);
     
   private:
-    typedef oatpp::web::protocol::http::incoming::Response Response;
-  private:
     class Query {
     public:
       std::vector<std::string> select,where;
@@ -127,15 +109,15 @@ namespace TSF {
     
     std::shared_ptr<ITaskWrapper> _sendTask;
     constexpr static const char* TAG = "InfluxTCPAdapter";
-    std::shared_ptr<oatpp::data::mapping::ObjectMapper> _objectMapper;
-    std::shared_ptr<oatpp::web::client::RequestExecutor> createExecutor();
+    std::unique_ptr<httplib::Client> _httpClient;
+    void createHttpClient();
     std::future<void> sendPointsFuture;
 
     Query queryPartsFromMetricId(const std::string& name);
     
-    std::string encodeQuery(std::string queryString);
-    nlohmann::json jsonFromResponse(const std::shared_ptr<Response> response);
-    
+    nlohmann::json executeQuery(const std::string& query, const std::string& epoch = "");
+    nlohmann::json jsonFromResponseBody(int statusCode, const std::string& body);
+
     static std::map<std::string, std::vector<Point> > __pointsFromJson(nlohmann::json& json);
     static std::vector<Point> __pointsSingle(nlohmann::json& json);
   };

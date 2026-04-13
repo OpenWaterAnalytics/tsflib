@@ -11,10 +11,7 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/join.hpp>
 
-#include <curl/curl.h>
-
 #include "InfluxAdapter.h"
-#include "InfluxClient.hpp"
 
 #include "MetricInfo.h"
 
@@ -22,25 +19,11 @@
 
 using namespace std;
 using namespace TSF;
-using namespace oatpp;
-using namespace oatpp::web;
-using namespace oatpp::network;
 using namespace nlohmann;
 
-std::string __url_encode(const std::string& input);
-std::string __url_encode(const std::string& input) {
-  std::string encoded;
-  CURL *curl = curl_easy_init();
-  if(curl) {
-    char *output = curl_easy_escape(curl, input.c_str(), 0);
-    if(output) {
-      encoded = std::string(output);
-      curl_free(output);
-    }
-    curl_easy_cleanup(curl);
-  }
-  return encoded;
-}
+// Resolve ambiguity with macOS MacTypes.h Point
+using TSF::Point;
+
 
 /***************************************************************************************/
 InfluxAdapter::connectionInfo::connectionInfo() {
@@ -88,8 +71,8 @@ void InfluxAdapter::setConnectionString(const std::string& str) {
     {"p", [&](string v){this->conn.pass = v;}},
     {"validate", [&](string v){this->conn.validate = boost::lexical_cast<bool>(v);}},
     {"ratelimit", [&](string v){this->conn.msec_ratelimit = boost::lexical_cast<int>(v);}}
-  }); 
-  
+  });
+
   for (auto kv : kvPairs) {
     if (kvSetters.count(kv.first) > 0) {
       kvSetters.at(kv.first)(kv.second);
@@ -300,23 +283,6 @@ const char *kSHOW_SERIES = "show series";
 const char *kERROR = "error";
 const char *kRESULTS = "results";
 // INFLUX TCP
-// task wrapper impl
-/**namespace TSF {
-  class PplxTaskWrapper : public ITaskWrapper {
-  public:
-    PplxTaskWrapper();
-    pplx::task<void> task;
-  };
-}
-// why the fully private implementation? it's really to guard client applications from having
-// to #include the pplx concurrency libs. this way everything is self-contained.
-PplxTaskWrapper::PplxTaskWrapper() {
-  this->task = pplx::task<void>([]() {
-    return; // simple no-op task as filler.
-  });
-}
-#define INFLUX_ASYNC_SEND static_pointer_cast<PplxTaskWrapper>(_sendTask)->task
- **/
 
 
 std::string InfluxTcpAdapter::Query::selectStr() {
@@ -348,63 +314,28 @@ std::string InfluxTcpAdapter::Query::nameAndWhereClause() {
 
 
 
-vector<Point> __pointsSingle(json& json);
-
 
 InfluxTcpAdapter::InfluxTcpAdapter( errCallback_t cb) : InfluxAdapter(cb) {
-  //_sendTask.reset(new PplxTaskWrapper());
 }
 
-//
-InfluxTcpAdapter::InfluxTcpAdapter( errCallback_t cb, std::shared_ptr<InfluxClient> rClient ) : InfluxAdapter(cb){
-  this->_restClient = rClient;
-}
 
 InfluxTcpAdapter::~InfluxTcpAdapter() {
   
 }
 
-shared_ptr<oatpp::web::client::RequestExecutor> InfluxTcpAdapter::createExecutor() {
-  if( TSF_STRINGS_ARE_EQUAL(this->conn.host, "localhost") && this->conn.port == 0){
-    auto interface = oatpp::network::virtual_::Interface::obtainShared("virtualhost");
-    auto clientConnectionProvider = oatpp::network::virtual_::client::ConnectionProvider::createShared(interface);
-    return client::HttpRequestExecutor::createShared(clientConnectionProvider);
+void InfluxTcpAdapter::createHttpClient() {
+  string baseUrl;
+  if (TSF_STRINGS_ARE_EQUAL(this->conn.proto, "https")) {
+    baseUrl = "https://" + this->conn.host + ":" + to_string(this->conn.port);
   }
-  shared_ptr<ClientConnectionProvider> connectionProvider;
-  /* Create connection provider */
-  if( TSF_STRINGS_ARE_EQUAL(this->conn.proto, "http") )
-  {
-    connectionProvider = oatpp::network::tcp::client::ConnectionProvider::createShared({this->conn.host,
-      (v_uint16)this->conn.port});
+  else {
+    baseUrl = "http://" + this->conn.host + ":" + to_string(this->conn.port);
   }
-  else if( TSF_STRINGS_ARE_EQUAL(this->conn.proto, "https") )
-  {
-    auto config = oatpp::openssl::Config::createShared();
-    connectionProvider = oatpp::openssl::client::ConnectionProvider::createShared(config, {this->conn.host, (v_uint16)this->conn.port});
-  }
-  
-  auto monitor = std::make_shared<oatpp::network::monitor::ConnectionMonitor>(connectionProvider);
-
-  /* close all connections that stay opened for more than 120 seconds */
-  monitor->addMetricsChecker(
-    std::make_shared<oatpp::network::monitor::ConnectionMaxAgeChecker>(
-      std::chrono::seconds(20)
-    )
-  );
-//  auto monitor = std::make_shared<oatpp::network::monitor::ConnectionMonitor>(connectionProvider);
-//  monitor->addMetricsChecker(
-//      std::make_shared<oatpp::network::monitor::ConnectionInactivityChecker>(
-//          std::chrono::seconds(20),
-//          std::chrono::seconds(20)
-//        )
-//    );
-  /* create retry policy */
-  auto retryPolicy = std::make_shared<client::SimpleRetryPolicy>(5 /* max retries */, std::chrono::seconds(5) /* retry interval */);
-
-  auto connectionPool = oatpp::network::ClientConnectionPool::createShared(connectionProvider, 10, std::chrono::seconds(20));
-  /* create request executor */
-  cout << "Creating executor" << endl;
-  return client::HttpRequestExecutor::createShared(connectionPool, retryPolicy);
+  _httpClient = std::make_unique<httplib::Client>(baseUrl);
+  _httpClient->set_connection_timeout(TSF_INFLUX_CLIENT_TIMEOUT);
+  _httpClient->set_read_timeout(TSF_INFLUX_CLIENT_TIMEOUT);
+  _httpClient->set_basic_auth(this->conn.user, this->conn.pass);
+  _httpClient->set_keep_alive(true);
 }
 
 const DbAdapter::adapterOptions InfluxTcpAdapter::options() const {
@@ -436,18 +367,15 @@ void InfluxTcpAdapter::doConnect() {
   _connected = false;
   _errCallback("Connecting...");
   
-  auto requestExecutor = createExecutor();
-  auto objectMapper = oatpp::parser::json::mapping::ObjectMapper::createShared();
-  _restClient = InfluxClient::createShared(requestExecutor, objectMapper);
-  
+  createHttpClient();
+
   // see if the database needs to be created
   bool dbExists = false;
   
   string q("SHOW SERIES LIMIT 1");
   json jsoMeas;
   try {
-    auto response = _restClient->doQuery(this->conn.getAuthString(), this->conn.db, encodeQuery(q));
-    jsoMeas = jsonFromResponse(response);
+    jsoMeas = executeQuery(q);
   } catch (const std::exception &err) {
     cerr << "error executing query: " << err.what() << endl;
   }
@@ -479,9 +407,16 @@ void InfluxTcpAdapter::doConnect() {
   
   
   if (!dbExists) {
-    string q("CREATE DATABASE " + this->conn.db);
-    auto response = _restClient->doCreate(this->conn.getAuthString(), encodeQuery(q));
-    json js = jsonFromResponse(response);
+    string createQ("CREATE DATABASE " + this->conn.db);
+    // Use POST /query for database creation (no db param needed)
+    httplib::Params params = {{"q", createQ}};
+    auto res = _httpClient->Post("/query", httplib::Headers{}, params);
+    json js = json::object();
+    if (res && res->status == 200) {
+      if (json::accept(res->body)) {
+        js = json::parse(res->body);
+      }
+    }
     if (js.size() == 0 || !js.contains(kRESULTS) ) {
       _errCallback("Can't create database");
       return;
@@ -498,30 +433,23 @@ void InfluxTcpAdapter::doConnect() {
 
 }
 
+
+nlohmann::json InfluxTcpAdapter::executeQuery(const std::string& query, const std::string& epoch) {
+  httplib::Params params = {{"db", this->conn.db}, {"q", query}};
+  if (!epoch.empty()) {
+    params.emplace("epoch", epoch);
+  }
+
+  auto res = _httpClient->Get("/query", params, httplib::Headers{});
+  if (!res) {
+    cerr << TAG << ": HTTP request failed (no response)" << endl;
+    return json::object();
+  }
+  return jsonFromResponseBody(res->status, res->body);
+}
+
+
 IdentifierUnitsList InfluxTcpAdapter::idUnitsList() {
-  
-  /*
-   
-   perform a query to get all the series.
-   response will be nested in terms of "measurement", and then each array in the "values" array will denote an individual time series:
-   
-   series: [
-   {   name: flow
-   columns:  [asset_id, asset_type, dma, ... ]
-   values: [ [33410,    pump,       brecon, ...],
-   [33453,    pipe,       mt.\ washington, ...],
-   [...]
-   ]
-   },
-   {   name: pressure
-   columns:   [asset_id, asset_type, dma, ...]
-   values: [  [44305,    junction,   brecon, ...],
-   [43205,    junction,   mt.\ washington, ...],
-   [...]
-   ]
-   }
-   
-   */
   
   IdentifierUnitsList ids;
   
@@ -533,8 +461,7 @@ IdentifierUnitsList InfluxTcpAdapter::idUnitsList() {
   
   json jsv;
   try {
-    auto response = _restClient->doQuery(this->conn.getAuthString(), this->conn.db, encodeQuery(kSHOW_SERIES));
-    jsv = jsonFromResponse(response);
+    jsv = executeQuery(kSHOW_SERIES);
   } catch (const std::exception &err) {
     cerr << "error executing query: " << err.what() << endl;
   }
@@ -581,15 +508,8 @@ IdentifierUnitsList InfluxTcpAdapter::idUnitsList() {
 }
 
 
-std::map<std::string, std::vector<Point> > InfluxTcpAdapter::wideQuery(TimeRange range) {
-  //_TSF_DB_SCOPED_LOCK;
-  
-  
-  // aggressive prefetch. query all series for some range, then shortcut subsequent queries if they are in the range cached.
-  
-  // influx allows regex in queries: 
-  // select "value" from /.+/ where time > ... and time < ...
-  
+std::map<std::string, std::vector<TSF::Point> > InfluxTcpAdapter::wideQuery(TimeRange range) {
+
   vector<string> fields({"time", "value", "quality", "confidence"});
   vector<string> where({"time >= " + to_string(range.start) + "s", "time <= " + to_string(range.end) + "s"});
   
@@ -600,29 +520,25 @@ std::map<std::string, std::vector<Point> > InfluxTcpAdapter::wideQuery(TimeRange
   ss << " WHERE " << boost::algorithm::join(where," AND ");
   ss << " GROUP BY * ORDER BY ASC";
   
-  // for many wide query optimization needs, we may also want the last known point prior to the range provided
-  // such as pump status or other report-by-exception values.
   string prevQuery = "SELECT time, value, quality, confidence FROM /.*/ WHERE time < " + to_string(range.start) + "s GROUP BY * order by time desc limit 1";
   string nextQuery = "SELECT time, value, quality, confidence FROM /.*/ WHERE time > " + to_string(range.end) + "s GROUP BY * order by time asc limit 1";
   
   auto qstr = prevQuery + ";" + ss.str() + ";" + nextQuery;
   json jsv;
   try {
-    auto response = _restClient->doQueryWithTimePrecision(this->conn.getAuthString(), this->conn.db, encodeQuery(qstr), "s");
-    jsv = jsonFromResponse(response);
+    jsv = executeQuery(qstr, "s");
   } catch (const std::exception &err) {
     cerr << "error executing query: " << err.what() << endl;
   }
   
   
-  map<string, vector<Point> > fetch = __pointsFromJson(jsv);
+  map<string, vector<TSF::Point> > fetch = __pointsFromJson(jsv);
   return fetch;
 }
 
 // READ
-std::vector<Point> InfluxTcpAdapter::selectRange(const std::string& id, TimeRange range) {
-  //_TSF_DB_SCOPED_LOCK;
-  
+std::vector<TSF::Point> InfluxTcpAdapter::selectRange(const std::string& id, TimeRange range) {
+
   string dbId = influxIdForTsId(id);
   InfluxTcpAdapter::Query q = this->queryPartsFromMetricId(dbId);
   q.where.push_back("time >= " + to_string(range.start) + "s");
@@ -630,8 +546,7 @@ std::vector<Point> InfluxTcpAdapter::selectRange(const std::string& id, TimeRang
   
   json jsv;
   try {
-    auto response = _restClient->doQueryWithTimePrecision(this->conn.getAuthString(), this->conn.db, encodeQuery(q.selectStr()), "s");
-    jsv = jsonFromResponse(response);
+    jsv = executeQuery(q.selectStr(), "s");
   } catch (const std::exception &err) {
     cerr << "error executing query: " << err.what() << endl;
   }
@@ -663,10 +578,9 @@ vector<string> _makeSelectStrs(WhereClause q) {
   return clauses;
 }
 
-Point InfluxTcpAdapter::selectNext(const std::string& id, time_t time, WhereClause whereClause) {
-  //_TSF_DB_SCOPED_LOCK;
-  
-  std::vector<Point> points;
+TSF::Point InfluxTcpAdapter::selectNext(const std::string& id, time_t time, WhereClause whereClause) {
+
+  std::vector<TSF::Point> points;
   string dbId = influxIdForTsId(id);
   Query q = this->queryPartsFromMetricId(dbId);
   q.where.push_back("time > " + to_string(time) + "s");
@@ -681,8 +595,7 @@ Point InfluxTcpAdapter::selectNext(const std::string& id, time_t time, WhereClau
   
   json jsv;
   try {
-    auto response = _restClient->doQueryWithTimePrecision(this->conn.getAuthString(), this->conn.db, encodeQuery(q.selectStr()), "s");
-    jsv = jsonFromResponse(response);
+    jsv = executeQuery(q.selectStr(), "s");
   } catch (const std::exception &err) {
     cerr << "error executing query: " << err.what() << endl;
   }
@@ -690,16 +603,15 @@ Point InfluxTcpAdapter::selectNext(const std::string& id, time_t time, WhereClau
   points = __pointsSingle(jsv);
   
   if (points.size() == 0) {
-    return Point();
+    return TSF::Point();
   }
   
   return points.front();
 }
 
-Point InfluxTcpAdapter::selectPrevious(const std::string& id, time_t time, WhereClause whereClause) {
-  //_TSF_DB_SCOPED_LOCK;
-  
-  std::vector<Point> points;
+TSF::Point InfluxTcpAdapter::selectPrevious(const std::string& id, time_t time, WhereClause whereClause) {
+
+  std::vector<TSF::Point> points;
   string dbId = influxIdForTsId(id);
   
   Query q = this->queryPartsFromMetricId(dbId);
@@ -715,8 +627,7 @@ Point InfluxTcpAdapter::selectPrevious(const std::string& id, time_t time, Where
   
   json jsv;
   try {
-    auto response = _restClient->doQueryWithTimePrecision(this->conn.getAuthString(), this->conn.db, encodeQuery(q.selectStr()), "s");
-    jsv = jsonFromResponse(response);
+    jsv = executeQuery(q.selectStr(), "s");
   } catch (const std::exception &err) {
     cerr << "error executing query: " << err.what() << endl;
   }
@@ -724,7 +635,7 @@ Point InfluxTcpAdapter::selectPrevious(const std::string& id, time_t time, Where
   points = __pointsSingle(jsv);
   
   if (points.size() == 0) {
-    return Point();
+    return TSF::Point();
   }
   
   return points.front();
@@ -732,14 +643,14 @@ Point InfluxTcpAdapter::selectPrevious(const std::string& id, time_t time, Where
 
 
 
-vector<Point> InfluxTcpAdapter::selectWithQuery(const std::string& query, TimeRange range) {
+vector<TSF::Point> InfluxTcpAdapter::selectWithQuery(const std::string& query, TimeRange range) {
   // expects a "$timeFilter" placeholder in the string arg,
   // to be replaced with the time range, e.g., "time >= t1 and time <= t2"
   
   //case insensitive find
   if (boost::ifind_first(query, std::string("$timeFilter")).empty()) {
     // add WHERE clause
-    return vector<Point>();
+    return vector<TSF::Point>();
   }
   
   string qStr = query;
@@ -769,8 +680,7 @@ vector<Point> InfluxTcpAdapter::selectWithQuery(const std::string& query, TimeRa
   }
   json jsv;
   try {
-    auto response = _restClient->doQueryWithTimePrecision(this->conn.getAuthString(), this->conn.db, encodeQuery(qStr), "s");
-    jsv = jsonFromResponse(response);
+    jsv = executeQuery(qStr, "s");
   } catch (const std::exception &err) {
     cerr << "error executing query: " << err.what() << endl;
   }
@@ -786,23 +696,28 @@ void InfluxTcpAdapter::removeRecord(const std::string& id) {
   
   stringstream sqlss;
   sqlss << "DROP SERIES FROM " << q.nameAndWhereClause();
-  oatpp::String qStr(sqlss.str());
-  _restClient->removeRecord(this->conn.getAuthString(), encodeQuery(qStr));
+  string qStr = sqlss.str();
+  httplib::Params params = {{"q", qStr}};
+  _httpClient->Post("/query", httplib::Headers{}, params);
 }
 
 void InfluxTcpAdapter::removeAllRecords() {
   
   _errCallback("Truncating");
-  OATPP_LOGD(TAG, "Truncating");
-  
+  cerr << TAG << ": Truncating" << endl;
+
   auto ids = this->idUnitsList();
   
   stringstream sqlss;
   sqlss << "DROP DATABASE " << this->conn.db << "; CREATE DATABASE " << this->conn.db;
   string qStr(sqlss.str());
-  auto response = _restClient->removeRecord(this->conn.getAuthString(), encodeQuery(qStr));
-  json v = jsonFromResponse(response);
-  
+  httplib::Params params = {{"q", qStr}};
+  auto res = _httpClient->Post("/query", httplib::Headers{}, params);
+  json v = json::object();
+  if (res && res->status == 200 && json::accept(res->body)) {
+    v = json::parse(res->body);
+  }
+
   this->beginTransaction();
   for (auto ts_units : *ids.get()) {
     this->insertIdentifierAndUnits(ts_units.first, ts_units.second.first);
@@ -818,8 +733,7 @@ size_t InfluxTcpAdapter::maxTransactionLines() {
 }
 
 void InfluxTcpAdapter::sendPointsWithString(const std::string& content) {
-  //INFLUX_ASYNC_SEND.wait(); // wait on previous send if needed.
-  
+
   if(sendPointsFuture.valid()){
     sendPointsFuture.wait();
     sendPointsFuture.get();
@@ -837,22 +751,26 @@ void InfluxTcpAdapter::sendPointsWithString(const std::string& content) {
     bio::copy(out, compressed);
     const string zippedContent(compressed.str());
     
-    int code;
-    oatpp::String desc;
     try {
-      auto response = _restClient->sendPoints(this->conn.getAuthString(), "gzip", this->conn.db, "s", zippedContent);
-      code = response->getStatusCode();
-      desc = response->getStatusDescription();
+      string path = "/write?db=" + this->conn.db + "&precision=s";
+      httplib::Headers headers = {
+        {"Content-Encoding", "gzip"}
+      };
+      auto res = _httpClient->Post(path, headers, zippedContent, "application/octet-stream");
+      if (res) {
+        int code = res->status;
+        switch(code) {
+          case 204:
+          case 200:
+            break;
+          default:
+            cout << "INFLUX TCP ADAPTER: Send points to influx: POST returned " << code << " - " << res->body << EOL << flush;
+        }
+      } else {
+        cerr << TAG << ": HTTP request failed (no response)" << endl;
+      }
     } catch (std::exception& e) {
-      OATPP_LOGE(TAG, "sending points: %s", e.what());
-    }
-    
-    switch(code) {
-      case 204:
-      case 200:
-        break;
-      default:
-        cout << "INFLUX TCP ADAPTER: Send points to influx: POST returned " << code << " - " << desc->c_str() << EOL << flush;
+      cerr << TAG << ": sending points: " << e.what() << endl;
     }
 
   });
@@ -864,60 +782,50 @@ void InfluxTcpAdapter::sendPointsWithString(const std::string& content) {
 
 }
 
-string InfluxTcpAdapter::encodeQuery(string queryString){
-  std::string q = __url_encode(queryString);
-  return q;
-}
 
-json InfluxTcpAdapter::jsonFromResponse(const std::shared_ptr<Response> response) {
+json InfluxTcpAdapter::jsonFromResponseBody(int statusCode, const std::string& body) {
   this->lastError = "";
   json js = json::object();
   
-  auto errCallback = _errCallback;
-  auto connection = this->conn;
-  
-  if (response == nullptr) {
-    return js;
-  }
-  
-  int code = response->getStatusCode();
-  if (code == 200) {
-    // OATPP_LOGI(TAG, "Connected");
-    std::string bodyStr = response->readBodyToString().getValue("");
-    // OATPP_LOGD(TAG, "%s", bodyStr.c_str());
-    if (!json::accept(bodyStr)){
-      OATPP_LOGE(TAG, "JSON Parse Error: %s", bodyStr.c_str());
-      this->lastError = string(bodyStr.c_str());
+  if (statusCode == 200) {
+    if (!json::accept(body)){
+      cerr << TAG << ": JSON Parse Error: " << body << endl;
+      this->lastError = body;
       return js;
     } else {
-      js = json::parse(bodyStr);
+      js = json::parse(body);
       return js;
     }
   }
   else {
-    auto err = string(response->readBodyToString().getValue("(no body content)").c_str());
-    cerr << TAG << ": Connection Error: " << response->getStatusDescription()->c_str() << " - " << err << endl;
-    auto errjs = json::parse(err);
-    this->lastError = errjs["error"];
+    cerr << TAG << ": Connection Error: HTTP " << statusCode << " - " << body << endl;
+    if (json::accept(body)) {
+      auto errjs = json::parse(body);
+      if (errjs.contains("error")) {
+        this->lastError = errjs["error"].get<string>();
+      }
+    } else {
+      this->lastError = body;
+    }
     return js;
   }
 }
 
 
-vector<Point> InfluxTcpAdapter::__pointsSingle(json& json) {
+vector<TSF::Point> InfluxTcpAdapter::__pointsSingle(json& json) {
   auto multi = __pointsFromJson(json);
   if (multi.size() > 0) {
     return multi.begin()->second;
   }
   else {
-    return vector<Point>();
+    return vector<TSF::Point>();
   }
 }
 
 
-map<string, vector<Point> > InfluxTcpAdapter::__pointsFromJson(json& json) {
+map<string, vector<TSF::Point> > InfluxTcpAdapter::__pointsFromJson(json& json) {
   
-  map<string, vector<Point> > out;
+  map<string, vector<TSF::Point> > out;
   
   // check for correct response format:
   if (!json.is_object() || 
@@ -934,7 +842,7 @@ map<string, vector<Point> > InfluxTcpAdapter::__pointsFromJson(json& json) {
     
     if ( !statement.is_object() || !statement.contains(kSERIES) ) {
       if (statement.contains("error")) {
-        OATPP_LOGE(InfluxTcpAdapter::TAG, "Error in json decoding: %s", statement["error"].dump().c_str());
+        cerr << TAG << ": Error in json decoding: " << statement["error"].dump() << endl;
       }
       continue;
     }
@@ -943,25 +851,23 @@ map<string, vector<Point> > InfluxTcpAdapter::__pointsFromJson(json& json) {
       // assemble the proper identifier for this series
       MetricInfo metric("");
       if (series.count("name") == 0) {
-        OATPP_LOGE(InfluxTcpAdapter::TAG, "Influx returned malformed response. No \"name\" property in series.");
-        OATPP_LOGI(InfluxTcpAdapter::TAG, "Series format returned: %s", series.dump().c_str());
+        cerr << TAG << ": Influx returned malformed response. No \"name\" property in series." << endl;
+        cerr << TAG << ": Series format returned: " << series.dump() << endl;
       }
-      metric.measurement = series.at("name");
+      metric.measurement = series.at("name").get<string>();
       if (series.contains("tags")) {
         auto tagsObj = series.at("tags");
-        json::iterator tagsIter = tagsObj.begin();
-        while (tagsIter != tagsObj.end()) {
-          auto key = tagsIter.key();
-          string value = tagsIter.value();
+        for (auto it = tagsObj.begin(); it != tagsObj.end(); ++it) {
+          auto key = it.key();
+          string value = it.value();
           if (value != "") {
             metric.tags[key] = value;
           }
-          ++tagsIter;
         }
         Units units = TSF_DIMENSIONLESS;
         if (metric.tags.count("units") == 0) {
-          OATPP_LOGE(InfluxTcpAdapter::TAG, "Influx returned malformed response. No \"units\" property in tag list.");
-          OATPP_LOGI(InfluxTcpAdapter::TAG, "Tags object format returned: %s", tagsObj.dump().c_str());
+          cerr << TAG << ": Influx returned malformed response. No \"units\" property in tag list." << endl;
+          cerr << TAG << ": Tags object format returned: " << tagsObj.dump() << endl;
         }
         else {
           units = Units::unitOfType(metric.tags.at("units"));
@@ -972,8 +878,8 @@ map<string, vector<Point> > InfluxTcpAdapter::__pointsFromJson(json& json) {
       
       map<string,int> columnMap;
       if (series.count("columns") == 0) {
-        OATPP_LOGE(InfluxTcpAdapter::TAG, "Influx returned malformed response. No \"columns\" property in series.");
-        OATPP_LOGI(InfluxTcpAdapter::TAG, "Series format returned: %s", series.dump().c_str());
+        cerr << TAG << ": Influx returned malformed response. No \"columns\" property in series." << endl;
+        cerr << TAG << ": Series format returned: " << series.dump() << endl;
       }
       auto cols = series.at("columns");
       for (int i = 0; i < cols.size(); ++i) {
@@ -1000,8 +906,8 @@ map<string, vector<Point> > InfluxTcpAdapter::__pointsFromJson(json& json) {
       confidenceIndex = columnMap.count("confidence") > 0 ? columnMap["confidence"] : -1;
       
       if (series.count("values") == 0) {
-        OATPP_LOGE(InfluxTcpAdapter::TAG, "Influx returned malformed response. No \"values\" property in series.");
-        OATPP_LOGI(InfluxTcpAdapter::TAG, "Series format returned: %s", series.dump().c_str());
+        cerr << TAG << ": Influx returned malformed response. No \"values\" property in series." << endl;
+        cerr << TAG << ": Series format returned: " << series.dump() << endl;
       }
       const auto &values = series.at("values");
       
@@ -1011,7 +917,7 @@ map<string, vector<Point> > InfluxTcpAdapter::__pointsFromJson(json& json) {
       }
       
       if (out.count(properId) == 0) {
-        out[properId] = vector<Point>();
+        out[properId] = vector<TSF::Point>();
       }
       
       auto pointVec = &(out.at(properId));
@@ -1025,27 +931,27 @@ map<string, vector<Point> > InfluxTcpAdapter::__pointsFromJson(json& json) {
         const auto &row = rowV;
         // ensure that these values are non-null and castable
         if (row.at(timeIndex).is_null() || row.at(valueIndex).is_null() || !row.at(timeIndex).is_number() || !row.at(valueIndex).is_number()) {
-          OATPP_LOGW(InfluxTcpAdapter::TAG, "Influx returned malformed row: %s", row.dump().c_str());
+          cerr << TAG << ": Influx returned malformed row: " << row.dump() << endl;
           continue;
         }
         time_t t = row.at(timeIndex);
         double v = row.at(valueIndex);
-        Point::PointQuality q = Point::opc_tsf_override;
+        TSF::Point::PointQuality q = TSF::Point::opc_tsf_override;
         if (qualityIndex > 0 && !row.at(qualityIndex).is_null()) {
-          q = (Point::PointQuality)(row.at(qualityIndex));
+          q = (TSF::Point::PointQuality)(row.at(qualityIndex));
         }
         double c = 0;
         if (confidenceIndex > 0 && !row.at(confidenceIndex).is_null()) {
           c = row.at(confidenceIndex);
         }
-        pointVec->push_back(Point(t,v,q,c));
+        pointVec->push_back(TSF::Point(t,v,q,c));
       }
     }
   }
   
   // sort these points
   for (auto &ts : out) {
-    std::sort(ts.second.begin(), ts.second.end(), Point::comparePointTime);
+    std::sort(ts.second.begin(), ts.second.end(), TSF::Point::comparePointTime);
   }
   
   
@@ -1138,16 +1044,16 @@ IdentifierUnitsList InfluxUdpAdapter::idUnitsList() {
 }
 
 // READ
-std::vector<Point> InfluxUdpAdapter::selectRange(const std::string& id, TimeRange range) {
-  return {Point()};
+std::vector<TSF::Point> InfluxUdpAdapter::selectRange(const std::string& id, TimeRange range) {
+  return {TSF::Point()};
 }
 
-Point InfluxUdpAdapter::selectNext(const std::string& id, time_t time, WhereClause q) {
-  return Point();
+TSF::Point InfluxUdpAdapter::selectNext(const std::string& id, time_t time, WhereClause q) {
+  return TSF::Point();
 }
 
-Point InfluxUdpAdapter::selectPrevious(const std::string& id, time_t time, WhereClause q) {
-  return Point();
+TSF::Point InfluxUdpAdapter::selectPrevious(const std::string& id, time_t time, WhereClause q) {
+  return TSF::Point();
 }
 
 

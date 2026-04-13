@@ -14,7 +14,7 @@
 #include <set>
 #include "tsfMacros.h"
 #include "TimeRange.h"
-#include <nlohmann/json.hpp>
+#include <glaze/glaze.hpp>
 
 namespace TSF {
   
@@ -118,9 +118,16 @@ namespace TSF {
   
   std::ostream& operator<< (std::ostream &out, Clock &clock);
 
-  // JSON serialization - Clock owns its own data shape
-  void to_json(nlohmann::json& j, const Clock& c);
-  void from_json(const nlohmann::json& j, Clock& c);
 }
+
+template <>
+struct glz::meta<TSF::Clock> {
+  using T = TSF::Clock;
+  static constexpr auto value = glz::object(
+    "name",   glz::custom<&T::setName, &T::name>,
+    "period", glz::custom<&T::setPeriod, &T::period>,
+    "offset", glz::custom<&T::setStart, &T::start>
+  );
+};
 
 #endif
