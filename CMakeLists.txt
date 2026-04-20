@@ -16,7 +16,7 @@ cmake_minimum_required (VERSION 3.15)
 
 project (TSFLIB)
 SET (CMAKE_C_FLAGS "-std=c99")
-SET (CMAKE_CXX_FLAGS "-Wall -std=c++17")
+SET (CMAKE_CXX_FLAGS "-Wall -std=c++23")
 SET (CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_definitions(-DNO_MYSQL)
 
@@ -32,13 +32,13 @@ IF(APPLE)
    SET(EXTRA_LIBS ${SECURITY_FRAMEWORK} ${CORE_FRAMEWORK})
 ENDIF (APPLE)
 
-find_package(CURL REQUIRED)
 find_package(Boost REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(sqlite_modern_cpp REQUIRED)
-find_package(oatpp REQUIRED)
-find_package(oatpp-openssl REQUIRED)
+find_package(httplib REQUIRED)
+find_package(OpenSSL REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(glaze REQUIRED)
 
 # the tsf library
 include_directories(
@@ -97,18 +97,18 @@ add_library(tsflib
 
 set_target_properties(
   tsflib PROPERTIES
-  CXX_STANDARD 17
+  CXX_STANDARD 23
 )
 
 target_compile_definitions(tsflib PRIVATE MAXFLOAT=3.40282347e+38F)
 set(tsflib_deps
-	CURL::libcurl
 	boost::boost
 	SQLite::SQLite3
 	sqlite_modern_cpp::sqlite_modern_cpp
-	oatpp::oatpp
-	oatpp::oatpp-openssl
+	httplib::httplib
+	openssl::openssl
 	nlohmann_json::nlohmann_json
+	glaze::glaze
 	)
 
 
@@ -122,6 +122,7 @@ add_executable(tsflib_test
   ./test/test_main.cpp
 	./test/test_units.cpp
 	./test/test_curve.cpp
+	./test/test_clock.cpp
 	./test/test_record.cpp
 	./test/test_influx.cpp
 	./test/test_filters.cpp

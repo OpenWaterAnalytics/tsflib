@@ -39,7 +39,7 @@ std::ostream& TSF::operator<< (std::ostream &out, Clock &clock) {
 #pragma mark - Public Methods
 
 
-std::string Clock::name() {
+std::string Clock::name() const {
   return _name;
 }
 
@@ -86,7 +86,7 @@ bool Clock::isValid(time_t time) {
 }
 
 
-int Clock::period() {
+int Clock::period() const {
   return _period;
 }
 
@@ -97,7 +97,7 @@ void Clock::setPeriod(int p) {
   }
 }
 
-time_t Clock::start() {
+time_t Clock::start() const {
   return _start;
 }
 
