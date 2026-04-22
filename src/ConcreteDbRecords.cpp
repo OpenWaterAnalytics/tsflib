@@ -4,6 +4,7 @@
 #include "SqliteAdapter.h"
 //#include "PiAdapter.h"
 #include "InfluxAdapter.h"
+#include "NexusAdapter.h"
 
 using namespace TSF;
 using namespace std;
@@ -52,3 +53,13 @@ void InfluxUdpPointRecord::sendInfluxString(time_t time, const string& seriesId,
 }
 
 /***************************************************************************************/
+
+NexusPointRecord::NexusPointRecord() {
+  _adapter = new NexusAdapter(_errCB);
+}
+NexusPointRecord::~NexusPointRecord() {
+  delete _adapter;
+}
+
+/***************************************************************************************/
+

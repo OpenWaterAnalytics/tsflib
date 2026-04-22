@@ -42,6 +42,14 @@ namespace TSF {
     void sendInfluxString(time_t time, const string& seriesId, const string& values);
   };
   
+
+  class NexusPointRecord : public DbPointRecord {
+  public:
+    TSF_BASE_PROPS(NexusPointRecord);
+    NexusPointRecord();
+    ~NexusPointRecord();
+  };
+
 }
 
 #endif /* defined(__tsflib__ConcreteDbRecords__) */

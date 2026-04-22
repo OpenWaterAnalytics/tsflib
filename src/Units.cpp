@@ -49,6 +49,8 @@ const std::map<std::string, Units> Units::unitStrings = {
   {"gps", TSF_GALLON_PER_SECOND},
   {"gpm", TSF_GALLON_PER_MINUTE},
   {"gpd", TSF_GALLON_PER_DAY},
+  {"gal/h", TSF_GALLON_PER_HOUR},
+  {"gal/min", TSF_GALLON_PER_MINUTE},
   {"mgd", TSF_MILLION_GALLON_PER_DAY},
   {"lps", TSF_LITER_PER_SECOND},
   {"lpm", TSF_LITER_PER_MINUTE},
@@ -61,6 +63,7 @@ const std::map<std::string, Units> Units::unitStrings = {
   {"s", TSF_SECOND},
   {"min", TSF_MINUTE},
   {"hr", TSF_HOUR},
+  {"h", TSF_HOUR},
   {"d", TSF_DAY},
   // mass
   {"μg", TSF_MICROGRAM},
@@ -70,6 +73,7 @@ const std::map<std::string, Units> Units::unitStrings = {
   // concentration
   {"mg/L", TSF_MILLIGRAMS_PER_LITER},
   {"μg/L", TSF_MICROGRAMS_PER_LITER},
+  {"µg/l", TSF_MICROGRAMS_PER_LITER},
   // conductance
   {"us/cm", TSF_MICROSIEMENS_PER_CM},
   // velocity
@@ -88,7 +92,10 @@ const std::map<std::string, Units> Units::unitStrings = {
   {"rankine", TSF_DEGREE_RANKINE},
   {"celsius", TSF_DEGREE_CELSIUS},
   {"fahrenheit", TSF_DEGREE_FAHRENHEIT},
-  
+  {"ºC", TSF_DEGREE_CELSIUS},
+  {"ºF", TSF_DEGREE_FAHRENHEIT},
+  {"F", TSF_DEGREE_FAHRENHEIT},
+
   {"kwh", TSF_KILOWATT_HOUR},
   {"mj", TSF_MEGAJOULE},
   {"j", TSF_JOULE},

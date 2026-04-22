@@ -41,6 +41,7 @@
 #define TSF_CUBIC_FOOT_PER_SECOND   TSF::Units(.0283168466,  0,3,-1)
 #define TSF_GALLON_PER_SECOND       TSF::Units(.00378541178, 0,3,-1)
 #define TSF_GALLON_PER_MINUTE       TSF::Units(.00006309020, 0,3,-1)
+#define TSF_GALLON_PER_HOUR         TSF::Units(0.000001051503333, 0,3,-1)
 #define TSF_GALLON_PER_DAY          TSF::Units(43.812638888E-9, 0,3,-1)
 #define TSF_MILLION_GALLON_PER_DAY  TSF::Units(.0438126364,  0,3,-1)
 #define TSF_LITER_PER_SECOND        TSF::Units(.001,         0,3,-1)
