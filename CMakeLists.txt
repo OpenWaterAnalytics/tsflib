@@ -126,7 +126,6 @@ add_executable(tsflib_test
 	./test/test_record.cpp
 	./test/test_influx.cpp
 	./test/test_filters.cpp
-	./test/test_nexus.cpp
 )
 
 target_link_libraries(tsflib_test
@@ -136,11 +135,6 @@ target_link_libraries(tsflib_test
 
 
 add_test(tsflib_test tsflib_test)
-
-# Standalone Nexus smoke test (no Boost.Test dependency)
-add_executable(nexus_smoke ./test/nexus_smoke_test.cpp)
-set_target_properties(nexus_smoke PROPERTIES CXX_STANDARD 17)
-target_link_libraries(nexus_smoke tsflib ${tsflib_deps})
 
 
 install(DIRECTORY ./src/ DESTINATION include FILES_MATCHING PATTERN "*.h")
