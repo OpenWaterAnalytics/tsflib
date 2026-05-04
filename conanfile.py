@@ -51,9 +51,8 @@ class TSFlib(ConanFile):
         self.requires("boost/1.83.0")
         self.requires("nlohmann_json/3.10.5")
         self.requires("libcurl/7.80.0")
-        #self.requires("sqlite3/3.45.3")
+        self.requires("sqlite3/3.45.3")
         self.requires("sqlite_modern_cpp/3.2")
-
 
     def build_requirements(self):
         pass
@@ -76,6 +75,4 @@ class TSFlib(ConanFile):
 
     def package_info(self):
         self.cpp_info.libs = ["tsflib"]
-
-
 
