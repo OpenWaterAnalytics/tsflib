@@ -50,7 +50,7 @@ const std::map<std::string, Units> Units::unitStrings = {
   {"gpm", TSF_GALLON_PER_MINUTE},
   {"gpd", TSF_GALLON_PER_DAY},
   {"gal/h", TSF_GALLON_PER_HOUR},
-  {"gal/min", TSF_GALLON_PER_MINUTE},
+//  {"gal/min", TSF_GALLON_PER_MINUTE},  #### removed due to collision with gpm causing failed lookups in influxdb. TODO: FIXME
   {"mgd", TSF_MILLION_GALLON_PER_DAY},
   {"lps", TSF_LITER_PER_SECOND},
   {"lpm", TSF_LITER_PER_MINUTE},

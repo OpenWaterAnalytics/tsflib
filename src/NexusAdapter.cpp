@@ -175,7 +175,7 @@ shared_ptr<oatpp::web::client::RequestExecutor> NexusAdapter::createExecutor() {
     5, std::chrono::seconds(5));
 
   auto connectionPool = oatpp::network::ClientConnectionPool::createShared(
-    connectionProvider, 10, std::chrono::seconds(20));
+    connectionProvider, 10, std::chrono::seconds(5));
 
   auto baseExecutor = client::HttpRequestExecutor::createShared(connectionPool, retryPolicy);
   return baseExecutor;
@@ -285,10 +285,6 @@ void NexusAdapter::refreshTagList() {
               auto units_str = attr_dict["value"].get<string>();
               units = Units::unitOfType(units_str);
             }
-            else if (attr_dict["attributeName"].get<string>() == "alias") {
-              name = attr_dict["value"].get<string>();
-            }
-            
           }
         }
       }
